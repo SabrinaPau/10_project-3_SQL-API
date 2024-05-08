@@ -132,11 +132,3 @@ dmypy.json
 .pyre/
 
 **/.DS_Store
-
-# data folders added in notebook
-data/
-data/
-data/
-data/
-data/
-data/
