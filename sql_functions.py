@@ -9,7 +9,7 @@ def get_sql_config():
         Function loads credentials from .env file and
         returns a dictionary containing the data needed for sqlalchemy.create_engine()
     '''
-    needed_keys = ['host', 'port', 'database','user','password']
+    needed_keys = ['group_host', 'group_port', 'group_database','group_user','group_password']
     dotenv_dict = dotenv_values(".env")
     sql_config = {key:dotenv_dict[key] for key in needed_keys if key in dotenv_dict}
     return sql_config
