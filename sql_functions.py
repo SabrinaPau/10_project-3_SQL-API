@@ -75,7 +75,6 @@ cancellation_code = {
 }
 
 def create_table(year):
-
     flights_dec = pd.read_csv(f'./data/FLIGHTS_REPORTING_{year}_DEC.csv')
     flights_jan = pd.read_csv(f'./data/FLIGHTS_REPORTING_{year}_JAN.csv')
     flights_feb = pd.read_csv(f'./data/FLIGHTS_REPORTING_{year}_FEB.csv')
