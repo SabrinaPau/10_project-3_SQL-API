@@ -2,7 +2,11 @@ from dotenv import dotenv_values
 import pandas as pd
 import sqlalchemy
 import psycopg2
+import requests # package for getting data from the web
+from zipfile import * # package for unzipping zip files
+import os
 
+path ='../data/' 
 cities = [
     "New York, NY",
     "Boston, MA",
@@ -19,6 +23,19 @@ cancellation_code = {
     "C": "traffic control issue",
     "D": "personal reasons",
 }
+columns_to_keep = [
+    "Year",
+    'Month',
+    'DayofMonth',
+    'FlightDate',
+    'DepDelay',
+    'ArrDelay',
+    'OriginCityName',
+    'DestCityName',
+    'Cancelled',
+    'CancellationCode',
+    'Diverted'
+]
 
 def get_sql_config():
     '''
@@ -59,6 +76,8 @@ def get_dataframe(sql_query):
     return pd.read_sql_query(sql_query, engine)
 
 
+
+
 def get_engine():
     sql_config = get_sql_config()
     engine = sqlalchemy.create_engine('postgresql://user:pass@host/database',
@@ -66,26 +85,85 @@ def get_engine():
                         )
     return engine  
 
-def create_table(year):
-    flights_dec = pd.read_csv(f'./data/FLIGHTS_REPORTING_{year}_DEC.csv')
-    flights_jan = pd.read_csv(f'./data/FLIGHTS_REPORTING_{year}_JAN.csv')
-    flights_feb = pd.read_csv(f'./data/FLIGHTS_REPORTING_{year}_FEB.csv')
 
-    flights = pd.concat([flights_dec, flights_jan, flights_feb])
 
-    origin = flights[flights["ORIGIN_CITY_NAME"].isin(cities)] 
+def download_data(year, month):
+    ''' Get the file from the website https://transtats.bts.gov ''' 
+    zip_file = f'On_Time_Reporting_Carrier_On_Time_Performance_1987_present_{year}_{month}.zip'
+    url = (f'https://transtats.bts.gov/PREZIP/{zip_file}')
+    ''' Download the database ''' 
+    r = requests.get(f'{url}', verify=False)
+    ''' Save database to local file storage''' 
+    with open(path+zip_file, 'wb') as f:
+        f.write(r.content)
+        print(f'--> zip_file with name: {zip_file} downloaded succesfully.' )
 
-    destination = flights[flights["DEST_CITY_NAME"].isin(cities)]
 
-    flights_clean = pd.concat([origin, destination])
 
-    flights_clean.drop(columns=["YEAR", "MONTH", "DAY_OF_MONTH", "ORIGIN", "DEST", "DEP_TIME", "ARR_TIME"], inplace=True)
+def extract_zip(year, month):
+    ''' Get the file from the website https://transtats.bts.gov '''
+    zip_file = f'On_Time_Reporting_Carrier_On_Time_Performance_1987_present_{year}_{month}.zip'
+    with ZipFile(path+zip_file, 'r') as zip_ref:
+        zip_ref.extractall(path)
+        csv_file =  zip_ref.namelist()[0]
+        print(f'--> zip_file was succesfully extracted to: {csv_file}.' )
 
-    flights_clean.columns = flights_clean.columns.str.lower()
-    flights_clean['cancellation_code_info'] = flights_clean['cancellation_code'].map(cancellation_code)
-    flights_clean["cancellation_code_info"] = flights_clean["cancellation_code_info"].fillna("not cancelled")
 
-    return flights_clean
+def create_table(year, months_list):
+
+    ''' Check if the data folder already exist, if not create it. '''
+    #if not os.path.exists(path):
+    #    os.makedirs(path)
+    #    print(f"--> Directory created: {path}")
+    #else:
+    #    print(f"--> Directory already exists: {path}")
+
+    ''' downloading the data as a zip from the url and extracting the zip file. '''
+    #for month in months_list:
+    #    download_data(year, month)
+    #    extract_zip(year, month)
+
+    ''' reading each file for the specific year and appending to a list. '''
+    flights_data = []
+    for month in months_list:
+        file_path = f"../data/On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_{year}_{month}.csv"
+        try:
+            flights_data.append(pd.read_csv(file_path))
+        except FileNotFoundError:
+            print(f"File not found for {month}")
+
+    ''' concatenate all files into a single df, so we have all the months of the
+    specific year together in a df. '''
+    flights_concat = pd.concat(flights_data)
+
+    ''' filter the columns we want to keep and create a copy of the original df. '''
+    flights_columns = flights_concat[columns_to_keep].copy()
+
+    ''' make all the columns lower case and rename some columns to have a better
+    understanding name. '''
+    flights_columns.columns = flights_columns.columns.str.lower()
+    flights_columns.rename(
+	columns={
+		'dayofmonth': 'day',
+		'flightdate': 'flight_date',
+		'depdelay': 'dep_delay',
+		'arrdelay': 'arr_delay',
+		'origincityname': 'origin',
+		'destcityname': 'destination',
+		'cancellationcode': 'cancellation_code',
+	}, inplace=True)
+
+    ''' Filter the only the cities we want to have. In these case we want to have the cities
+    from the the list 'cities' being either the origin of the flight or the destination of the flight. '''
+    flights = flights_columns[flights_columns["origin"].isin(cities) | flights_columns["destination"].isin(cities)]
+
+
+    flights['cancellation_code_info'] = flights['cancellation_code'].map(cancellation_code)
+    flights["cancellation_code_info"] = flights["cancellation_code_info"].fillna("not cancelled")
+    flights.drop_duplicates(inplace=True)
+    flights["had_delay"] = ((flights["arr_delay"] < 0) | (flights["dep_delay"] < 0)).astype(int)
+    flights['flight_date'] = pd.to_datetime(flights['flight_date'])
+    return flights
 
 def push_to_cloud(table, name):
     schema = 'group3'
@@ -110,12 +188,3 @@ def push_to_cloud(table, name):
         else:
             print('No engine')
 
-
-def clean_flights_table(year):
-    table = get_dataframe(f"select * from group3.flights_{year}")
-    table.drop_duplicates(inplace=True)
-    table.rename(columns={'fl_date': 'flight_date'}, inplace=True)
-    table['flight_date'] = pd.to_datetime(table['flight_date'])
-    table["had_delay"] = ((table["arr_delay"] < 0) | (table["dep_delay"] < 0)).astype(int)
-    table.drop(columns=["dep_delay", "arr_delay"], inplace=True)
-    return table
