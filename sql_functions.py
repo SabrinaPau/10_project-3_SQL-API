@@ -112,16 +112,16 @@ def extract_zip(year, month):
 def create_table(year, months_list):
 
     ''' Check if the data folder already exist, if not create it. '''
-    #if not os.path.exists(path):
-    #    os.makedirs(path)
-    #    print(f"--> Directory created: {path}")
-    #else:
-    #    print(f"--> Directory already exists: {path}")
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print(f"--> Directory created: {path}")
+    else:
+        print(f"--> Directory already exists: {path}")
 
     ''' downloading the data as a zip from the url and extracting the zip file. '''
-    #for month in months_list:
-    #    download_data(year, month)
-    #    extract_zip(year, month)
+    for month in months_list:
+        download_data(year, month)
+        extract_zip(year, month)
 
     ''' reading each file for the specific year and appending to a list. '''
     flights_data = []
