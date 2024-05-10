@@ -1,6 +1,9 @@
 # database details
 sql.py
 
+# Data
+data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -132,4 +135,13 @@ dmypy.json
 .pyre/
 
 **/.DS_Store
+
+<<<<<<< HEAD
+# data folders added in notebook
+data/
+data/
+data/
+data/
+data/
+data/
 
