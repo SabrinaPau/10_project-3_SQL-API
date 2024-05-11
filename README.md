@@ -77,3 +77,13 @@ $ cp ../da-external-data-sourcing/sql_functions.py .
 **And:**  
 **Keep in mind that your API calls are limited!**  
 **When possible, separate code calling the API from other code working on the data.**
+
+
+
+
+### Color Pallet
+#555555
+#003366
+#4E5356
+#A3A8AE
+#1e3251

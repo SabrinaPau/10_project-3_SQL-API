@@ -5,13 +5,14 @@ import psycopg2
 import requests # package for getting data from the web
 from zipfile import * # package for unzipping zip files
 import os
+import time
 
 path ='../data/' 
 cities = [
     "New York, NY",
-    "Boston, MA",
     "Washington, DC",
-    "Newark, NJ",
+    "Boston, MA",
+    "Philadelphia, PA",
     "Miami, FL",
     "Houston, TX",
     "San Francisco, CA",
@@ -34,8 +35,18 @@ columns_to_keep = [
     'DestCityName',
     'Cancelled',
     'CancellationCode',
-    'Diverted'
 ]
+# Cities to get the data from:
+stations = [
+    '74486',            # New York - John F. Kennedy Airport
+    '72405',            # Washington D.C. National Airport
+    '72408',             # Philadelphia, PA
+    '72202',            #'Miami International Airport'
+    '72243',            #'Houston, TX Intercontinental'
+    '72494',            #'San Francisco Airport'
+    '72793'             # Seattle-Tacoma Airport
+]
+
 
 def get_sql_config():
     '''
@@ -163,6 +174,7 @@ def create_table(year, months_list):
     flights.drop_duplicates(inplace=True)
     flights["had_delay"] = ((flights["arr_delay"] < 0) | (flights["dep_delay"] < 0)).astype(int)
     flights['flight_date'] = pd.to_datetime(flights['flight_date'])
+    flights['cancelled']  = flights['cancelled'].astype(int)
     return flights
 
 def push_to_cloud(table, name):
@@ -188,3 +200,77 @@ def push_to_cloud(table, name):
         else:
             print('No engine')
 
+
+def get_weather_data(start_dates, end_dates):
+    # Set the url
+    url = "https://meteostat.p.rapidapi.com/stations/daily"
+
+    headers = {
+        "X-RapidAPI-Key": os.getenv('api_key'),
+        "X-RapidAPI-Host": "meteostat.p.rapidapi.com"
+    }
+
+    # Create empty dataframe, will be used to append each location's weather data
+    weather_df = pd.DataFrame([])
+
+    # Loop through all locations and all dates
+    for station in stations:
+        for start_date, end_date in zip(start_dates, end_dates):
+            querystring = {
+                            "station": station,
+                            "start": start_date,
+                            "end": end_date,
+                            "units": "metric"
+                            }
+            
+            # Request data from url
+            r = requests.get(url, headers=headers, params=querystring)
+            time.sleep(5) #uncomment if you run into a query limit
+            # Decode response with json decoder
+            weather_temp = r.json()
+
+            # Flatten json response
+            weather_temp_df = pd.json_normalize(weather_temp,
+                                                sep='_',
+                                                record_path='data',
+                                                record_prefix='weather_'
+                                                )
+            
+            # Set the station code for all rows related to the current date range
+            weather_temp_df['station'] = station
+
+            # Concatenate dataframes
+            weather_df = pd.concat([weather_df, weather_temp_df], ignore_index=True)
+
+    # Print final dataset weather_df
+    return weather_df
+
+
+def clean_weather_data(weather):
+    weather.drop(['weather_wdir', 'weather_wpgt', 'weather_pres', 'weather_tsun'], axis=1, inplace=True)
+    weather['weather_date'] = pd.to_datetime(weather['weather_date'])
+    weather.rename(columns={
+        'weather_date': 'date',
+        'weather_tavg': 'avg_temp_°C',
+        'weather_tmin': 'min_temp_°C',
+        'weather_tmax': 'max_temp_°C',
+        'weather_prcp': 'preciptation_mm',
+        'weather_snow': 'snowdepth_mm',
+        'weather_wspd': 'avg_windspeed_kmh'
+    }, inplace=True)
+
+    station_names = {
+        '74486': 'New York, NY',	
+        '72405': 'Washington, DC',
+        '72408': 'Philadelphia, PA',
+        '72202': 'Miami, FL',
+        '72243': 'Houston, TX',
+        '72494': 'San Francisco',
+        '72793': 'Seattle, WA'
+    }
+    weather['city_name'] = weather['station'].map(station_names)
+    weather.drop(['station'], axis=1, inplace=True)
+    weather['year'] = weather['date'].dt.year
+    weather['month'] = weather['date'].dt.month
+    weather['day'] = weather['date'].dt.day
+    return weather
