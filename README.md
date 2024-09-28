@@ -81,9 +81,11 @@ $ cp ../da-external-data-sourcing/sql_functions.py .
 
 
 
-### Color Pallet
-#555555
-#003366
-#4E5356
-#A3A8AE
-#1e3251
+### Color Pallet  
+#555555  
+#003366  
+#4E5356  
+#A3A8AE  
+#1e3251  
+
+[Presentation](https://github.com/SabrinaPau/10_project-3_SQL-API/blob/main/Pra%CC%88sentation%20API.pdf)
