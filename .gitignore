@@ -1,8 +1,8 @@
 # database details
 sql.py
 
-# Data
-data/
+# # Data
+# data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
